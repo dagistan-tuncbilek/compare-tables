@@ -2,10 +2,21 @@ import {PrismaClient} from '@prisma/client'
 import {createReadStream} from "fs";
 import * as readline from "readline";
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient();
+const chunkSize = 10;
+let limit = 30;
+
+async function clearTables() {
+    await prisma.$queryRaw`TRUNCATE TABLE results;`;
+    await prisma.$queryRaw`ALTER TABLE results AUTO_INCREMENT = 1;`;
+    await prisma.$queryRaw`TRUNCATE TABLE cdpsanitized;`;
+    await prisma.$queryRaw`TRUNCATE TABLE ticketlist;`;
+    console.log('Database tables truncated')
+}
 
 async function main() {
     // First read and store files one by one, then test app.
+    await clearTables();
     await readFileAndStore('./files/cdpSanitized.txt', 'cdpSanitized');
     await readFileAndStore('./files/dal_ticketList.txt', 'ticketList');
     await compareCounts();
@@ -15,12 +26,12 @@ async function main() {
         return;
         // await prisma.results.deleteMany({});
     }
-    let limit = 3000000;
+
     let skip = 0;
-    while (limit === 3000000) {
+    while (limit !== 0) {
         const rows = await compareRecordsAndSaveDB(limit, skip);
-        skip = skip + limit
-        if (rows < 3000) limit = 0;
+        skip = skip + limit;
+        if (rows < limit) limit = 0;
     }
     console.log(`Total unmatched rows: ${await prisma.results.count()}`);
 }
@@ -43,12 +54,16 @@ async function compareRecordsAndSaveDB(limit: number, skip: number) {
     // If values in the columns involved in the comparison are identical, no row returns.
     if (unmatchedRows.length) {
         console.log(`Some rows are not matched. Total: ${unmatchedRows.length}`);
-        await prisma.results.createMany({
-            data: unmatchedRows.map(row => ({
-                value: row.value,
-                modelId: row.id
-            }))
-        });
+        for (let i = 0; i < unmatchedRows.length; i += chunkSize) {
+            const chunk = unmatchedRows.slice(i, i + chunkSize);
+            await prisma.results.createMany({
+                data: chunk.map(row => ({
+                    value: row.value,
+                    modelId: row.id
+                }))
+            });
+            console.log(`Results saved: ${i + skip} to ${i + chunkSize + skip}`);
+        }
     } else {
         console.log(`All records are identical`);
     }
@@ -67,6 +82,7 @@ async function compareCounts() {
 async function readFileAndStore(filepath: string, table: 'cdpSanitized' | 'ticketList') {
     console.log('Reading: ' + filepath);
     const ticketLists = await prisma[table].count();
+    console.log('Table is not empty: ' + table);
     if (ticketLists) return;
     return new Promise((resolve, reject) => {
         const readStream = createReadStream(filepath);
