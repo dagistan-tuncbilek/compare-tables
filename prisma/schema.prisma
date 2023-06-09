@@ -21,8 +21,13 @@ model CdpSanitized {
 }
 
 model Results {
-  id      Int     @id @default(autoincrement())
-  modelId String  @db.VarChar(255)
-  value   String  @db.VarChar(255)
-  table   String? @db.VarChar(255)
+  id      Int    @id @default(autoincrement())
+  modelId String @db.VarChar(255)
+  value   String @db.VarChar(255)
+}
+
+model ComparedResults {
+  id                String  @id @db.VarChar(255)
+  ticketListValue   String? @db.VarChar(255)
+  cdpSanitizedValue String? @db.VarChar(255)
 }
