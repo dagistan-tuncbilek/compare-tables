@@ -32,7 +32,7 @@ async function main() {
     // Prepare ComparedResults table
     skip = 0;
     stop = false;
-    const tempLimit = limit / 3;
+    const tempLimit = Math.ceil(limit / 3);
     while (!stop) {
         const rows = await finalizeAndPrepareComparedResults(tempLimit, skip);
         skip = skip + tempLimit;
